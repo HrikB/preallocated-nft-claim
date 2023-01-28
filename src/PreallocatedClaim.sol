@@ -7,20 +7,22 @@ import {ERC721} from "solmate/tokens/ERC721.sol";
  * @dev tokenIds must be a set of sequential integers from 0 to MAX_SUPPLY - 1
  */
 contract PreallocatedClaim is ERC721 {
-    uint256 internal maxSupply;
-    uint256 internal constant PREALLOCATION_PERIOD = 2 days;
+    uint256 internal immutable maxSupply;
+
+    uint256 public randomClaimsCount;
+
+    uint16[] internal _preallocatedClaims;
+    uint16[] internal _randomClaimsLeft;
 
     uint256 private _preallocationEnd; //timestamp
-    uint256 private _randomClaimsCount;
-    uint16[] private _preallocatedClaims;
-    uint16[] private _randomClaimsLeft;
 
     constructor(
         string memory _name,
         string memory _symbol,
-        uint256 _maxSupply
+        uint256 _maxSupply,
+        uint256 _preallocationPeriod
     ) ERC721(_name, _symbol) {
-        _preallocationEnd = block.timestamp + PREALLOCATION_PERIOD;
+        _preallocationEnd = block.timestamp + _preallocationPeriod;
         maxSupply = _maxSupply;
     }
 
@@ -40,7 +42,7 @@ contract PreallocatedClaim is ERC721 {
             "PreallocatedClaim: claimId is greater than the maximum supply"
         );
 
-        uint256 tokensLeft = --_randomClaimsCount; // Amount of tokens left after this transaction's success
+        uint256 tokensLeft = --randomClaimsCount; // Amount of tokens left after this transaction's success
         if (claimId <= tokensLeft)
             _randomClaimsLeft[claimId] = uint16(tokensLeft);
         else

@@ -46,22 +46,31 @@ contract PreallocatedClaim is ERC721 {
             "PreallocatedClaim: claimId is greater than the maximum supply"
         );
 
-        uint256 claimIdEncode = claimId == 0 ? maxSupply : claimId;
-
         uint256 tokensLeft = --claimsLeftCount; // Amount of tokens left after this transaction's success
+        uint16 arrayValue = getArrayValue(uint16(tokensLeft));
         if (claimId <= tokensLeft) {
-            _randomClaimsLeft[claimId] = uint16(tokensLeft);
-            _randomClaimsLeft[tokensLeft] = uint16(claimIdEncode);
+            uint256 claimIdEncode = claimId == 0 ? maxSupply : claimId;
+            _randomClaimsLeft[claimId] = uint16(arrayValue);
+            _randomClaimsLeft[arrayValue] = uint16(claimIdEncode);
         } else {
             uint16 indexToSwitch = _randomClaimsLeft[claimId];
             uint16 indexToSwitchDecode = indexToSwitch == maxSupply
                 ? 0
                 : indexToSwitch;
-            _randomClaimsLeft[indexToSwitchDecode] = uint16(
-                getArrayValue(uint16(tokensLeft))
-            );
-            _randomClaimsLeft[tokensLeft] = uint16(indexToSwitch);
+            _randomClaimsLeft[indexToSwitchDecode] = uint16(arrayValue);
+            _randomClaimsLeft[arrayValue] = uint16(indexToSwitch);
         }
+
+        _safeMint(to, claimId);
+    }
+
+    function mintRandom(address to) external {
+        require(
+            block.timestamp >= _preallocationEnd,
+            "Preallocation period has not ended"
+        );
+
+        uint256 claimId = 0;
 
         _safeMint(to, claimId);
     }
@@ -77,6 +86,7 @@ contract PreallocatedClaim is ERC721 {
     function tokenURI(uint256 tokenId)
         public
         view
+        virtual
         override
         returns (string memory)
     {}

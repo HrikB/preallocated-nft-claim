@@ -15,15 +15,14 @@ contract PreallocatedClaimExposed is PreallocatedClaim {
     function randomClaimsLeft(uint256 index) public view returns (uint16) {
         return _randomClaimsLeft[index];
     }
+
+    function exists(uint256 tokenId) public view returns (bool) {
+        return _ownerOf[tokenId] != address(0);
+    }
 }
 
 contract PreallocatedClaimTest is Test {
     PreallocatedClaimExposed public preallocatedClaim;
-    uint256 private removedId1;
-    uint256 private removedId2;
-    uint256 private removedId3;
-    uint256 private removedId4;
-    uint256 private removedId5;
     uint256 private constant totalSupply = 10;
 
     address user = vm.addr(1);
@@ -53,6 +52,8 @@ contract PreallocatedClaimTest is Test {
 
         expectedArr[tokenIdToMint] = totalSupply - 1;
         expectedArr[totalSupply - 1] = tokenIdToMint;
+
+        assertEq(preallocatedClaim.ownerOf(tokenIdToMint), user);
         checkClaimsArrayState(expectedArr);
     }
 
@@ -72,6 +73,8 @@ contract PreallocatedClaimTest is Test {
 
         expectedArr[tokenIdToMint] = totalSupply - 1;
         expectedArr[totalSupply - 1] = tokenIdToMint;
+
+        assertEq(preallocatedClaim.ownerOf(tokenIdToMint), user);
         checkClaimsArrayState(expectedArr);
     }
 
@@ -91,6 +94,8 @@ contract PreallocatedClaimTest is Test {
 
         expectedArr[tokenIdToMint] = totalSupply - 1;
         expectedArr[totalSupply - 1] = tokenIdToMint;
+
+        assertEq(preallocatedClaim.ownerOf(tokenIdToMint), user);
         checkClaimsArrayState(expectedArr);
     }
 
@@ -124,6 +129,8 @@ contract PreallocatedClaimTest is Test {
                 expectedArr[indexToSwitch] = cacheCountLeftArrVal;
                 expectedArr[countLeft] = indexToSwitch;
             }
+
+            assertEq(preallocatedClaim.ownerOf(tokenIdToMint), user);
             checkClaimsArrayState(expectedArr);
         }
     }
@@ -159,6 +166,8 @@ contract PreallocatedClaimTest is Test {
                 expectedArr[indexToSwitch] = cacheCountLeftArrVal;
                 expectedArr[countLeft] = indexToSwitch;
             }
+
+            assertEq(preallocatedClaim.ownerOf(tokenIdToMint), user);
             checkClaimsArrayState(expectedArr);
         }
     }
@@ -194,6 +203,8 @@ contract PreallocatedClaimTest is Test {
                 expectedArr[indexToSwitch] = cacheCountLeftArrVal;
                 expectedArr[countLeft] = indexToSwitch;
             }
+
+            assertEq(preallocatedClaim.ownerOf(tokenIdToMint), user);
             checkClaimsArrayState(expectedArr);
         }
     }
@@ -204,6 +215,8 @@ contract PreallocatedClaimTest is Test {
             expectedArr[i] = i;
         }
         checkClaimsArrayState(expectedArr);
+        checkRemainingTokensPresent();
+        checkValidMappings();
 
         uint16[] memory allTokenIds = new uint16[](10);
         for (uint16 i = 0; i < allTokenIds.length; i++) {
@@ -228,14 +241,18 @@ contract PreallocatedClaimTest is Test {
             --countLeft;
 
             if (tokenIdToMint <= countLeft) {
-                expectedArr[tokenIdToMint] = countLeft;
-                expectedArr[countLeft] = uint16(tokenIdToMint);
+                expectedArr[tokenIdToMint] = cacheCountLeftArrVal;
+                expectedArr[cacheCountLeftArrVal] = uint16(tokenIdToMint);
             } else {
                 uint16 indexToSwitch = uint16(expectedArr[tokenIdToMint]);
                 expectedArr[indexToSwitch] = cacheCountLeftArrVal;
-                expectedArr[countLeft] = indexToSwitch;
+                expectedArr[cacheCountLeftArrVal] = indexToSwitch;
             }
+
+            assertEq(preallocatedClaim.ownerOf(tokenIdToMint), user);
             checkClaimsArrayState(expectedArr);
+            checkRemainingTokensPresent();
+            checkValidMappings();
         }
     }
 
@@ -256,5 +273,61 @@ contract PreallocatedClaimTest is Test {
         console.log();
     }
 
-    /* UTILS */
+    function checkRemainingTokensPresent() private {
+        uint256 claimsLeft = preallocatedClaim.claimsLeftCount();
+        uint256[10] memory presenceTracker;
+
+        // Mark all tokens that have been minted as 1
+        for (uint16 i = 0; i < totalSupply; i++)
+            if (preallocatedClaim.exists(i)) presenceTracker[i] = 1;
+
+        // If token is unminted, check for its presence in the remaining set
+        for (uint16 i = 0; i < presenceTracker.length; i++) {
+            if (presenceTracker[i] == 0) {
+                bool found = false;
+                for (uint16 j = 0; j < claimsLeft; j++) {
+                    // console.log(preallocatedClaim.getArrayValue(j), i);
+                    if (preallocatedClaim.getArrayValue(j) == i) {
+                        found = true;
+                        break;
+                    }
+                }
+                assertTrue(found, "Missing unminted token in remaining set");
+            }
+        }
+        // console.log();
+    }
+
+    /**
+     * 8 8
+     * 1 0
+     * 2 0
+     * 3 0
+     * 9 9
+     * 5 0
+     * 6 0
+     * 7 0
+     *-------
+     * 0 10
+     * 4 4
+     *
+     * Let the right side be the actual state on-chain of `randomClaimsLeft` and
+     * the left side be the derived state we interpret from the array. Numbers
+     * above the line are `tokenIds` still remaining the be distributed. The
+     * derivation comes from taking the value in `randomClaimsLeft` if it isn't
+     * zero, otherwise, taking the index as the value. We must ensure that if
+     * the value at an index `i` is not zero, then
+     * `randomClaimsLeft[randomClaimsLeft[i]] = i`. The maintenance of this
+     * invariant is integral to functioning of the distribution algorithm.
+     */
+    function checkValidMappings() private {
+        uint256 claimsLeft = preallocatedClaim.claimsLeftCount();
+        for (uint16 i = 0; i < claimsLeft; i++) {
+            uint16 val = preallocatedClaim.randomClaimsLeft(i);
+            if (val == 0) continue;
+            uint16 iEncode = i == 0 ? 10 : i;
+            assertEq(preallocatedClaim.randomClaimsLeft(val), iEncode);
+            assertEq(preallocatedClaim.getArrayValue(val), i);
+        }
+    }
 }

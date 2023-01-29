@@ -49,17 +49,17 @@ contract PreallocatedClaim is ERC721 {
         uint16 tokensLeft = uint16(--claimsLeftCount); // Amount of tokens left after this transaction's success
         uint16 derivedValue = getDerivedValue(tokensLeft);
 
-        if (claimId <= tokensLeft) {
-            uint16 claimIdEncode = claimId == 0 ? uint16(maxSupply) : claimId;
-            _claimsLeft[claimId] = derivedValue;
-            _claimsLeft[derivedValue] = claimIdEncode;
-        } else {
+        if (claimId > tokensLeft) {
             uint16 indexToSwitch = _claimsLeft[claimId];
             uint16 indexToSwitchDecode = indexToSwitch == maxSupply
                 ? 0
                 : indexToSwitch;
             _claimsLeft[indexToSwitchDecode] = derivedValue;
             _claimsLeft[derivedValue] = indexToSwitch;
+        } else {
+            uint16 claimIdEncode = claimId == 0 ? uint16(maxSupply) : claimId;
+            _claimsLeft[claimId] = derivedValue;
+            _claimsLeft[derivedValue] = claimIdEncode;
         }
 
         _safeMint(to, claimId);

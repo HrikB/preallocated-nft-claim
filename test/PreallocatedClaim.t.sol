@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../src/PreallocatedClaim.sol";
+import {PreallocatedClaim} from "../src/PreallocatedClaim.sol";
 
 contract PreallocatedClaimExposed is PreallocatedClaim {
     constructor(
@@ -23,8 +23,7 @@ contract PreallocatedClaimExposed is PreallocatedClaim {
 
 contract PreallocatedClaimTest is Test {
     PreallocatedClaimExposed public preallocatedClaim;
-    uint256 private constant totalSupply = 20;
-
+    uint256 private constant totalSupply = 10;
     address user = vm.addr(1);
 
     function setUp() public {
@@ -221,6 +220,15 @@ contract PreallocatedClaimTest is Test {
             checkRemainingTokensPresent();
             checkValidMappings();
         }
+    }
+
+    function testMintMaxSupply() external {
+        vm.expectRevert(
+            bytes(
+                "PreallocatedClaim: claimId is greater than the maximum supply"
+            )
+        );
+        preallocatedClaim.mint(user, uint16(totalSupply));
     }
 
     /* INVARIANTS */

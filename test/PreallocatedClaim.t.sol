@@ -12,8 +12,8 @@ contract PreallocatedClaimExposed is PreallocatedClaim {
         uint256 _preallocationPeriod
     ) PreallocatedClaim(_name, _symbol, _maxSupply, _preallocationPeriod) {}
 
-    function randomClaimsLeft(uint256 index) public view returns (uint16) {
-        return _randomClaimsLeft[index];
+    function claimsLeft(uint256 index) public view returns (uint16) {
+        return _claimsLeft[index];
     }
 
     function exists(uint256 tokenId) public view returns (bool) {
@@ -23,7 +23,7 @@ contract PreallocatedClaimExposed is PreallocatedClaim {
 
 contract PreallocatedClaimTest is Test {
     PreallocatedClaimExposed public preallocatedClaim;
-    uint256 private constant totalSupply = 10;
+    uint256 private constant totalSupply = 20;
 
     address user = vm.addr(1);
 
@@ -105,33 +105,35 @@ contract PreallocatedClaimTest is Test {
             expectedArr[i] = i;
         }
         checkClaimsArrayState(expectedArr);
+        checkRemainingTokensPresent();
+        checkValidMappings();
 
         for (uint16 i = 0; i < totalSupply; i++) {
             uint16 tokenIdToMint = i;
-
-            uint256 countLeft = preallocatedClaim.claimsLeftCount();
+            uint16 tokensLeft = uint16(preallocatedClaim.claimsLeftCount() - 1);
 
             vm.expectRevert(bytes("NOT_MINTED"));
             preallocatedClaim.ownerOf(tokenIdToMint);
 
-            uint16 cacheCountLeftArrVal = uint16(
-                preallocatedClaim.getArrayValue(uint16(countLeft - 1))
+            uint16 derivedValue = uint16(
+                preallocatedClaim.getDerivedValue(tokensLeft)
             );
 
             preallocatedClaim.mint(user, tokenIdToMint);
-            --countLeft;
 
-            if (tokenIdToMint <= countLeft) {
-                expectedArr[tokenIdToMint] = countLeft;
-                expectedArr[countLeft] = uint16(tokenIdToMint);
+            if (tokenIdToMint <= tokensLeft) {
+                expectedArr[tokenIdToMint] = derivedValue;
+                expectedArr[derivedValue] = tokenIdToMint;
             } else {
                 uint16 indexToSwitch = uint16(expectedArr[tokenIdToMint]);
-                expectedArr[indexToSwitch] = cacheCountLeftArrVal;
-                expectedArr[countLeft] = indexToSwitch;
+                expectedArr[indexToSwitch] = derivedValue;
+                expectedArr[derivedValue] = indexToSwitch;
             }
 
             assertEq(preallocatedClaim.ownerOf(tokenIdToMint), user);
             checkClaimsArrayState(expectedArr);
+            checkRemainingTokensPresent();
+            checkValidMappings();
         }
     }
 
@@ -141,75 +143,40 @@ contract PreallocatedClaimTest is Test {
             expectedArr[i] = i;
         }
         checkClaimsArrayState(expectedArr);
+        checkRemainingTokensPresent();
+        checkValidMappings();
 
         // i-- underflows
         for (int16 i = (int16(uint16(totalSupply)) - 1); i >= 0; i--) {
             uint16 tokenIdToMint = uint16(i);
-
-            uint256 countLeft = preallocatedClaim.claimsLeftCount();
-
-            vm.expectRevert(bytes("NOT_MINTED"));
-            preallocatedClaim.ownerOf(tokenIdToMint);
-
-            uint16 cacheCountLeftArrVal = uint16(
-                preallocatedClaim.getArrayValue(uint16(countLeft - 1))
-            );
-
-            preallocatedClaim.mint(user, tokenIdToMint);
-            --countLeft;
-
-            if (tokenIdToMint <= countLeft) {
-                expectedArr[tokenIdToMint] = countLeft;
-                expectedArr[countLeft] = uint16(tokenIdToMint);
-            } else {
-                uint16 indexToSwitch = uint16(expectedArr[tokenIdToMint]);
-                expectedArr[indexToSwitch] = cacheCountLeftArrVal;
-                expectedArr[countLeft] = indexToSwitch;
-            }
-
-            assertEq(preallocatedClaim.ownerOf(tokenIdToMint), user);
-            checkClaimsArrayState(expectedArr);
-        }
-    }
-
-    function testMintAllRandom() external {
-        uint256[] memory expectedArr = new uint256[](totalSupply);
-        for (uint256 i = 0; i < expectedArr.length; i++) {
-            expectedArr[i] = i;
-        }
-        checkClaimsArrayState(expectedArr);
-
-        uint16[10] memory mintOrder = [uint16(3), 2, 4, 9, 7, 5, 8, 1, 6, 0];
-
-        for (uint16 i = 0; i < mintOrder.length; i++) {
-            uint16 tokenIdToMint = mintOrder[i];
-            uint256 countLeft = preallocatedClaim.claimsLeftCount();
+            uint16 tokensLeft = uint16(preallocatedClaim.claimsLeftCount() - 1);
 
             vm.expectRevert(bytes("NOT_MINTED"));
             preallocatedClaim.ownerOf(tokenIdToMint);
 
-            uint16 cacheCountLeftArrVal = uint16(
-                preallocatedClaim.getArrayValue(uint16(countLeft - 1))
+            uint16 derivedValue = uint16(
+                preallocatedClaim.getDerivedValue(tokensLeft)
             );
 
             preallocatedClaim.mint(user, tokenIdToMint);
-            --countLeft;
 
-            if (tokenIdToMint <= countLeft) {
-                expectedArr[tokenIdToMint] = countLeft;
-                expectedArr[countLeft] = uint16(tokenIdToMint);
+            if (tokenIdToMint <= tokensLeft) {
+                expectedArr[tokenIdToMint] = derivedValue;
+                expectedArr[derivedValue] = tokenIdToMint;
             } else {
                 uint16 indexToSwitch = uint16(expectedArr[tokenIdToMint]);
-                expectedArr[indexToSwitch] = cacheCountLeftArrVal;
-                expectedArr[countLeft] = indexToSwitch;
+                expectedArr[indexToSwitch] = derivedValue;
+                expectedArr[derivedValue] = indexToSwitch;
             }
 
             assertEq(preallocatedClaim.ownerOf(tokenIdToMint), user);
             checkClaimsArrayState(expectedArr);
+            checkRemainingTokensPresent();
+            checkValidMappings();
         }
     }
 
-    function testMintAllFuzz(uint16[10] memory arr) external {
+    function testMintAllFuzz(uint16[totalSupply] memory arr) external {
         uint256[] memory expectedArr = new uint256[](totalSupply);
         for (uint256 i = 0; i < expectedArr.length; i++) {
             expectedArr[i] = i;
@@ -218,35 +185,35 @@ contract PreallocatedClaimTest is Test {
         checkRemainingTokensPresent();
         checkValidMappings();
 
-        uint16[] memory allTokenIds = new uint16[](10);
+        uint16[] memory allTokenIds = new uint16[](totalSupply);
         for (uint16 i = 0; i < allTokenIds.length; i++) {
             allTokenIds[i] = i;
         }
 
         for (uint16 i = 0; i < allTokenIds.length; i++) {
-            uint256 countLeft = preallocatedClaim.claimsLeftCount();
-            uint16 indexToMint = arr[i] % uint16(countLeft);
+            uint16 tokensLeft = uint16(preallocatedClaim.claimsLeftCount());
+            uint16 indexToMint = arr[i] % uint16(tokensLeft);
             uint16 tokenIdToMint = allTokenIds[indexToMint];
-            allTokenIds[indexToMint] = allTokenIds[countLeft - 1];
-            console.log("tokenIdToMint", tokenIdToMint);
+
+            --tokensLeft;
+            allTokenIds[indexToMint] = allTokenIds[tokensLeft];
 
             vm.expectRevert(bytes("NOT_MINTED"));
             preallocatedClaim.ownerOf(tokenIdToMint);
 
-            uint16 cacheCountLeftArrVal = uint16(
-                preallocatedClaim.getArrayValue(uint16(countLeft - 1))
+            uint16 derivedValue = uint16(
+                preallocatedClaim.getDerivedValue(tokensLeft)
             );
 
             preallocatedClaim.mint(user, tokenIdToMint);
-            --countLeft;
 
-            if (tokenIdToMint <= countLeft) {
-                expectedArr[tokenIdToMint] = cacheCountLeftArrVal;
-                expectedArr[cacheCountLeftArrVal] = uint16(tokenIdToMint);
+            if (tokenIdToMint <= tokensLeft) {
+                expectedArr[tokenIdToMint] = derivedValue;
+                expectedArr[derivedValue] = tokenIdToMint;
             } else {
                 uint16 indexToSwitch = uint16(expectedArr[tokenIdToMint]);
-                expectedArr[indexToSwitch] = cacheCountLeftArrVal;
-                expectedArr[cacheCountLeftArrVal] = indexToSwitch;
+                expectedArr[indexToSwitch] = derivedValue;
+                expectedArr[derivedValue] = indexToSwitch;
             }
 
             assertEq(preallocatedClaim.ownerOf(tokenIdToMint), user);
@@ -264,18 +231,18 @@ contract PreallocatedClaimTest is Test {
             if (claimsLeft == 0 && i == 0) console.log("---------");
             console.log(
                 expectedState[i],
-                preallocatedClaim.getArrayValue(i),
-                preallocatedClaim.randomClaimsLeft(i)
+                preallocatedClaim.getDerivedValue(i),
+                preallocatedClaim.claimsLeft(i)
             );
             if (i + 1 == claimsLeft) console.log("---------");
-            assertEq(expectedState[i], preallocatedClaim.getArrayValue(i));
+            assertEq(expectedState[i], preallocatedClaim.getDerivedValue(i));
         }
         console.log();
     }
 
     function checkRemainingTokensPresent() private {
         uint256 claimsLeft = preallocatedClaim.claimsLeftCount();
-        uint256[10] memory presenceTracker;
+        uint256[totalSupply] memory presenceTracker;
 
         // Mark all tokens that have been minted as 1
         for (uint16 i = 0; i < totalSupply; i++)
@@ -286,8 +253,8 @@ contract PreallocatedClaimTest is Test {
             if (presenceTracker[i] == 0) {
                 bool found = false;
                 for (uint16 j = 0; j < claimsLeft; j++) {
-                    // console.log(preallocatedClaim.getArrayValue(j), i);
-                    if (preallocatedClaim.getArrayValue(j) == i) {
+                    // console.log(preallocatedClaim.getDerivedValue(j), i);
+                    if (preallocatedClaim.getDerivedValue(j) == i) {
                         found = true;
                         break;
                     }
@@ -311,23 +278,23 @@ contract PreallocatedClaimTest is Test {
      * 0 10
      * 4 4
      *
-     * Let the right side be the actual state on-chain of `randomClaimsLeft` and
+     * Let the right side be the actual state on-chain of `claimsLeft` and
      * the left side be the derived state we interpret from the array. Numbers
      * above the line are `tokenIds` still remaining the be distributed. The
-     * derivation comes from taking the value in `randomClaimsLeft` if it isn't
+     * derivation comes from taking the value in `claimsLeft` if it isn't
      * zero, otherwise, taking the index as the value. We must ensure that if
      * the value at an index `i` is not zero, then
-     * `randomClaimsLeft[randomClaimsLeft[i]] = i`. The maintenance of this
+     * `claimsLeft[claimsLeft[i]] = i`. The maintenance of this
      * invariant is integral to functioning of the distribution algorithm.
      */
     function checkValidMappings() private {
         uint256 claimsLeft = preallocatedClaim.claimsLeftCount();
         for (uint16 i = 0; i < claimsLeft; i++) {
-            uint16 val = preallocatedClaim.randomClaimsLeft(i);
+            uint16 val = preallocatedClaim.claimsLeft(i);
             if (val == 0) continue;
-            uint16 iEncode = i == 0 ? 10 : i;
-            assertEq(preallocatedClaim.randomClaimsLeft(val), iEncode);
-            assertEq(preallocatedClaim.getArrayValue(val), i);
+            uint16 iEncode = i == 0 ? uint16(totalSupply) : i;
+            assertEq(preallocatedClaim.claimsLeft(val), iEncode);
+            assertEq(preallocatedClaim.getDerivedValue(val), i);
         }
     }
 }

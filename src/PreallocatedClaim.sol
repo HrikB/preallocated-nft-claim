@@ -12,7 +12,7 @@ contract PreallocatedClaim is ERC721 {
 
     uint256 public claimsLeftCount;
 
-    uint16[] internal _randomClaimsLeft;
+    uint16[] internal _claimsLeft;
 
     uint256 private _preallocationEnd; //timestamp
 
@@ -26,7 +26,7 @@ contract PreallocatedClaim is ERC721 {
         maxSupply = _maxSupply;
         claimsLeftCount = _maxSupply;
 
-        _randomClaimsLeft = new uint16[](_maxSupply);
+        _claimsLeft = new uint16[](_maxSupply);
     }
 
     function mint(address to, uint16 claimId) external {
@@ -46,19 +46,20 @@ contract PreallocatedClaim is ERC721 {
             "PreallocatedClaim: claimId is greater than the maximum supply"
         );
 
-        uint256 tokensLeft = --claimsLeftCount; // Amount of tokens left after this transaction's success
-        uint16 arrayValue = getArrayValue(uint16(tokensLeft));
+        uint16 tokensLeft = uint16(--claimsLeftCount); // Amount of tokens left after this transaction's success
+        uint16 derivedValue = getDerivedValue(tokensLeft);
+
         if (claimId <= tokensLeft) {
-            uint256 claimIdEncode = claimId == 0 ? maxSupply : claimId;
-            _randomClaimsLeft[claimId] = uint16(arrayValue);
-            _randomClaimsLeft[arrayValue] = uint16(claimIdEncode);
+            uint16 claimIdEncode = claimId == 0 ? uint16(maxSupply) : claimId;
+            _claimsLeft[claimId] = derivedValue;
+            _claimsLeft[derivedValue] = claimIdEncode;
         } else {
-            uint16 indexToSwitch = _randomClaimsLeft[claimId];
+            uint16 indexToSwitch = _claimsLeft[claimId];
             uint16 indexToSwitchDecode = indexToSwitch == maxSupply
                 ? 0
                 : indexToSwitch;
-            _randomClaimsLeft[indexToSwitchDecode] = uint16(arrayValue);
-            _randomClaimsLeft[arrayValue] = uint16(indexToSwitch);
+            _claimsLeft[indexToSwitchDecode] = derivedValue;
+            _claimsLeft[derivedValue] = indexToSwitch;
         }
 
         _safeMint(to, claimId);
@@ -75,8 +76,8 @@ contract PreallocatedClaim is ERC721 {
         _safeMint(to, claimId);
     }
 
-    function getArrayValue(uint16 index) public view returns (uint16) {
-        uint16 val = _randomClaimsLeft[index];
+    function getDerivedValue(uint16 index) public view returns (uint16) {
+        uint16 val = _claimsLeft[index];
 
         if (val == 0) return index;
         if (val == maxSupply) return 0;

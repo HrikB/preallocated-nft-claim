@@ -10,7 +10,7 @@ contract PreallocatedClaimExposed is PreallocatedClaim {
         string memory _symbol,
         uint256 _maxSupply,
         uint256 _preallocationPeriod
-    ) PreallocatedClaim(_name, _symbol, _maxSupply, _preallocationPeriod) {}
+    ) PreallocatedClaim(_name, _symbol, _maxSupply, _preallocationPeriod, address(0), address(0)) {}
 
     function claimsLeft(uint256 index) public view returns (uint16) {
         return _claimsLeft[index];

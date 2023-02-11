@@ -7,11 +7,14 @@ import {PreallocatedClaim} from "../src/PreallocatedClaim.sol";
 contract PreallocatedClaimScript is Script {
     PreallocatedClaim public pClaim;
 
-    function setUp() public {
-        pClaim = new PreallocatedClaim("Test", "TST", 10, 2 days);
-    }
+    function setUp() public {}
 
     function run() public {
-        pClaim.mint(address(this), 7);
+        vm.startBroadcast();
+
+        pClaim = new PreallocatedClaim("Test", "TST", 10, 2 days);
+        // pClaim.mint(address(this), 7);
+
+        vm.stopBroadcast();
     }
 }

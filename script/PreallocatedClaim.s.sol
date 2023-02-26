@@ -12,8 +12,10 @@ contract PreallocatedClaimScript is Script {
     function run() public {
         vm.startBroadcast();
 
-        pClaim = new PreallocatedClaim("Test", "TST", 10, 2 days);
-        // pClaim.mint(address(this), 7);
+        pClaim = new PreallocatedClaim("Test", "TST", 10000, 0);
+        for (uint256 i = 0; i < 10; i++) {
+            pClaim.mintRandom(address(1));
+        }
 
         vm.stopBroadcast();
     }

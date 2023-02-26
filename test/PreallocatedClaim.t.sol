@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity 0.8.18;
 
 import "forge-std/Test.sol";
 import {PreallocatedClaim} from "../src/PreallocatedClaim.sol";
@@ -10,7 +10,7 @@ contract PreallocatedClaimExposed is PreallocatedClaim {
         string memory _symbol,
         uint256 _maxSupply,
         uint256 _preallocationPeriod
-    ) PreallocatedClaim(_name, _symbol, _maxSupply, _preallocationPeriod, address(0), address(0)) {}
+    ) PreallocatedClaim(_name, _symbol, _maxSupply, _preallocationPeriod) {}
 
     function claimsLeft(uint256 index) public view returns (uint16) {
         return _claimsLeft[index];
@@ -26,6 +26,8 @@ contract PreallocatedClaimTest is Test {
     uint256 private constant totalSupply = 10;
     address user = vm.addr(1);
 
+    event E(uint256 preclaimAmount);
+
     function setUp() public {
         preallocatedClaim = new PreallocatedClaimExposed(
             "Test",
@@ -33,6 +35,29 @@ contract PreallocatedClaimTest is Test {
             totalSupply,
             2 days
         );
+    }
+
+    function testIntegration(uint256 rand) external {
+        uint256 preclaimAmount = rand % totalSupply;
+
+        checkRemainingTokensPresent();
+        checkValidMappings();
+        for (uint256 i = 0; i < preclaimAmount; i++) {
+            preallocatedClaim.mint(address(1), uint16(i));
+            checkRemainingTokensPresent();
+            checkValidMappings();
+        }
+        vm.warp(block.timestamp + 3 days);
+        for (uint256 i = preclaimAmount; i < totalSupply; i++) {
+            preallocatedClaim.mintRandom(address(1));
+            checkRemainingTokensPresent();
+            checkValidMappings();
+        }
+
+        // Nonce is only incremented when a token is minted randomly
+        assertEq(preallocatedClaim.nonce() + preclaimAmount, totalSupply);
+        assertEq(preallocatedClaim.balanceOf(address(1)), totalSupply);
+        assertEq(preallocatedClaim.claimsLeftCount(), 0);
     }
 
     function testZeroIndexMint() external {

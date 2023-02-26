@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity 0.8.18;
 
 import {ERC721} from "solmate/tokens/ERC721.sol";
+import {RandomLib} from "./RandomLib.sol";
 import "forge-std/console.sol";
 
 /**
@@ -15,6 +16,8 @@ contract PreallocatedClaim is ERC721 {
     uint16[] internal _claimsLeft;
 
     uint256 private _preallocationEnd; //timestamp
+
+    uint256 public nonce;
 
     constructor(
         string memory _name,
@@ -62,6 +65,8 @@ contract PreallocatedClaim is ERC721 {
             _claimsLeft[derivedValue] = claimIdEncode;
         }
 
+        console.log(claimId);
+
         _safeMint(to, claimId);
     }
 
@@ -71,7 +76,26 @@ contract PreallocatedClaim is ERC721 {
             "Preallocation period has not ended"
         );
 
-        uint256 claimId = 0;
+        uint256 random = RandomLib.psuedoRandom(nonce++);
+
+        uint16 tokensLeft = uint16(--claimsLeftCount); // Amount of tokens left after this transaction's success
+        uint16 claimId = getDerivedValue(uint16(random % (tokensLeft + 1)));
+        uint16 derivedValue = getDerivedValue(tokensLeft);
+
+        if (claimId > tokensLeft) {
+            uint16 indexToSwitch = _claimsLeft[claimId];
+            uint16 indexToSwitchDecode = indexToSwitch == maxSupply
+                ? 0
+                : indexToSwitch;
+            _claimsLeft[indexToSwitchDecode] = derivedValue;
+            _claimsLeft[derivedValue] = indexToSwitch;
+        } else {
+            uint16 claimIdEncode = claimId == 0 ? uint16(maxSupply) : claimId;
+            _claimsLeft[claimId] = derivedValue;
+            _claimsLeft[derivedValue] = claimIdEncode;
+        }
+
+        console.log(claimId);
 
         _safeMint(to, claimId);
     }
